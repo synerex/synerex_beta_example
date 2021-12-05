@@ -1,0 +1,13 @@
+
+.terminaljs {
+    height: 200px;
+    font-size: 10pt;
+    background: black;
+    color: #aaa;
+    font-family: Courier, monospace;
+    /*	display:inline-block;*/
+    overflow-y: scroll;
+    overflow-x: auto;
+    position: relative; 
+}
+
