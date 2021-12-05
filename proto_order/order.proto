@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package proto_order;
+
+option go_package="github.com/synerex/synerex_beta_example/proto_order";
+
+message Coord {
+    float lat = 1;
+    float lon = 2;
+}
+enum ItemType {
+    ANY  = 0;
+    FOOD = 1;
+    BEVERAGE = 2;
+}
+
+message Shop {
+    int32   shop_id = 1;
+    string  name    = 2;
+    Coord   coord   = 3;
+}
+
+message Item {
+    int32    id      = 1;
+    int32    shop_id = 2;
+    ItemType type    = 3;
+    string   name    = 4;
+    int32    price   = 5;
+    int32    stock   = 6;  // how many stocks
+    int32    order   = 7;  // how many order (in propose, should be 0)
+}
+
+message Order {
+    int32 order_id = 1;
+    repeated Shop shops = 2;
+    repeated Item items = 3;
+}
