@@ -15,14 +15,14 @@ enum ItemType {
 }
 
 message Shop {
-    int32   shop_id = 1;
+    uint64  shop_id = 1;
     string  name    = 2;
     Coord   coord   = 3;
 }
 
 message Item {
     int32    id      = 1;
-    int32    shop_id = 2;
+    uint64   shop_id = 2;
     ItemType type    = 3;
     string   name    = 4;
     int32    price   = 5;

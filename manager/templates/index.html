@@ -49,69 +49,111 @@
     <div class="demo">
       <div id="usage"></div>
     </div>
+
+    <table class="mtbl" id="menutable">
+      <tr>
+        <th>No. </th> <th> Shop </th> <th> Item </th> <th> Price </th>
+      </tr>
+    </table>
     <script>
       var terms=[];
+      var mtable = document.getElementById('menutable');
+
+      function getNewHost(port){
+        w = window.location.host
+        if (w.indexOf(":") > 0){
+          return w.split(":")[0]+":"+port
+        }
+        return w+":"+port
+      }
 
       (function () {
         var conn;
 
-        conn = new WebSocket("ws://"+document.location.host+"/ws");
-        conn.onClose = function(evt){
-          console.log("Closed");          
+        function connect(){
+          conn = new WebSocket("ws://"+document.location.host+"/ws");
+          conn.onclose = function(evt){
+            console.log("WS Closed");
+            setTimeout(function(){  // retry connect
+              connect();
+            }, 1000);
+          }
+          conn.onopen = function(evt){
+            console.log("WS Connected");
+          }
+          conn.onmessage = function(event){
+            //          console.log("Event Msg", event);
+                      st = event.data;  // convert to string?
+                      cpt = st.indexOf(',');
+                      tid = st.substring(0,cpt);
+                      str = st.substring(cpt+1);
+                      terms.forEach(v => {  // 適切なターミナルに表示
+                        if (v.id == tid) {
+                          v.term.write(str)
+                          v.term.write("\n\r")
+                          v.p.scrollTo({
+                            top: (v.term.state.cursor.y-10)*7,
+                            left:0,
+                            behavior: 'smooth'
+                          })
+                        }
+                      });
+                    }
+            
         }
 
+        connect()
+
+ 
         nodeterm = document.getElementById('nodeterm');
-        var nodeT = new Terminal({columns:120, rows:6});
+        var nodeT = new Terminal({columns:120, rows:10});
         nodeT.dom(nodeterm);
 //        nodeT.write("Test!");
         terms.push({id: "nodeterm", term: nodeT, p:nodeterm});
 
         sxterm = document.getElementById('sxterm');
-        var sxT = new Terminal({columns:120, rows:6});
+        var sxT = new Terminal({columns:120, rows:10});
         sxT.dom(sxterm);
 //        sxT.write("SxTerm!");
         terms.push({id: "sxterm", term: sxT, p:sxterm});
 
         auxterm = document.getElementById('auxterm');
-        var auxT = new Terminal({columns:120, rows:6});
+        var auxT = new Terminal({columns:120, rows:10});
         auxT.dom(auxterm);
         terms.push({id: "auxterm", term: auxT, p:auxterm});
 
         var stNode = document.getElementById('startNode');
         stNode.addEventListener('click', function(){
           console.log("send! nodeterm")
-          conn.send("nodeterm,c:\\work2020\\synerex_beta\\nodeserv\\nodeserv");
+          conn.send("nodeterm,../nodeserv/nodeserv");
         })
         var stNode = document.getElementById('startSx');
         stNode.addEventListener('click', function(){
           console.log("send! sxterm")
-          conn.send("sxterm,c:\\work2020\\synerex_beta\\server\\synerex-server");
+          conn.send("sxterm,../synerex_server/synerex-server");
         })
         var userNode = document.getElementById('startUser');
         userNode.addEventListener('click', function(){
-          conn.send("auxterm,..\\user_provider\\user_provider");
+          conn.send("auxterm,../user_provider/user_provider");
         })
 
-        
-        conn.onmessage = function(event){
-          console.log("Event Msg", event);
-          st = event.data;  // convert to string?
-          cpt = st.indexOf(',');
-          tid = st.substring(0,cpt);
-          str = st.substring(cpt+1);
-          terms.forEach(v => {  // 適切なターミナルに表示
-            if (v.id == tid) {
-              v.term.write(str)
-              v.term.write("\n\r")
-              v.p.scrollTo({
-                top: (v.term.state.cursor.y-10)*15,
-                left:0,
-                behavior: 'smooth'
-              })
-            }
-          });
+        var userMenu = document.getElementById('getMenu');
+        userMenu.addEventListener('click', function(){
+          console.log("Do menu!")
+          fetch("http://"+getNewHost(8081)+"/menu").then( data => data.text()).then(
+            data => console.log(data));
+          var menuCon = new WebSocket("ws://"+getNewHost(8081)+"/ws");
+          menuCon.onopen = ()=>{
+            console.log("Menu connected!");
+          }  
+          menuCon.onmessage = (evt) =>{
+            obj = JSON.parse(event.data);
+            obj.items.foreach( (o)=>{
+            })
+          } 
+        });
 
-        }
+        
 
         
       })();

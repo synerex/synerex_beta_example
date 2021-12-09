@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -24,6 +25,8 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 }
+
+var runCmds map[string]*exec.Cmd
 
 // websocket clients
 type TClient struct {
@@ -51,6 +54,9 @@ func NewTServ() *TServ {
 
 // main goroutine for Terminal server
 func (ts *TServ) run() {
+	// initialize cmds
+	runCmds = make(map[string]*exec.Cmd)
+
 	for {
 		select {
 		case client := <-ts.register:
@@ -181,8 +187,31 @@ func (ts *TServ) messageHandler(msg []byte) {
 	go ts.runCommand(id, cmd) // starting new command with Terminai ID
 }
 
-// exec local command.
+// exec local command connected with remote terminal
 func (ts *TServ) runCommand(termId string, cmdStr string) {
+	pcmd, ok := runCmds[cmdStr]
+	if ok {
+		log.Printf("checking current status of %s", cmdStr)
+		// we should stop the pcmd, so check the state
+		log.Printf("cmd process %#v %#v %#v", pcmd, pcmd.ProcessState, pcmd.Process)
+		if pcmd.ProcessState == nil { // still running
+			log.Printf("killing process %#v", pcmd)
+			pcmd.Process.Signal(syscall.SIGINT)
+			time.Sleep(100 * time.Millisecond) // wait to close old channels
+			pcmd.Process.Kill()
+			pcmd.Process.Wait() // wait until the process stops.
+			log.Printf("killed process %#v", pcmd)
+			/*			if pcmd.ProcessState.Exited() {
+							log.Printf("Process %s stopped and restart", cmdStr)
+							ts.sendTerm(termId, "process "+cmdStr+" restart!")
+							time.Sleep(100 * time.Millisecond) // wait to close old channels
+						} else {
+							log.Printf("Can't stop the process %#v %s", pcmd, pcmd.ProcessState.String())
+						}
+			*/
+		}
+		delete(runCmds, cmdStr)
+	}
 
 	cmd := exec.Command(cmdStr)
 	stdout, _ := cmd.StdoutPipe()
@@ -190,8 +219,10 @@ func (ts *TServ) runCommand(termId string, cmdStr string) {
 	err := cmd.Start() //
 	if err != nil {
 		log.Printf("Cmd %s start Error:%v", cmdStr, err)
+		return // do not stream..
 	} else {
 		log.Printf("%s:Cmd %s starts!", termId, cmdStr)
+		runCmds[cmdStr] = cmd
 	}
 
 	outChan := make(chan string)

@@ -1,0 +1,73 @@
+[
+  {
+    "nodeid": 0,
+    "info": {
+      "name": "SynerexServer",
+      "nodepbase": "0.1.12",
+      "nodebinver": "v0.5.0",
+      "secret": 14561623157524580795,
+      "address": "127.0.0.1:49607",
+      "nodeType": 1,
+      "serverInfo": "127.0.0.1:10000",
+      "channels": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "lastAlive": "2021-12-06T09:10:30.9537921+09:00",
+      "count": 13,
+      "status": 0,
+      "arg": "",
+      "duration": 10
+    }
+  },
+  {
+    "nodeid": 12,
+    "info": {
+      "name": "UserProvider",
+      "nodepbase": "0.1.12",
+      "nodebinver": "",
+      "secret": 17079690517081337774,
+      "address": "127.0.0.1:61312",
+      "nodeType": 0,
+      "serverInfo": "",
+      "channels": [
+        1
+      ],
+      "lastAlive": "2021-12-06T09:10:21.6430595+09:00",
+      "count": 4,
+      "status": 0,
+      "arg": "",
+      "duration": 10
+    }
+  },
+  {
+    "nodeid": 13,
+    "info": {
+      "name": "SrvcPrvdr",
+      "nodepbase": "0.1.12",
+      "nodebinver": "",
+      "secret": 13840080784297223538,
+      "address": "127.0.0.1:61409",
+      "nodeType": 0,
+      "serverInfo": "",
+      "channels": [
+        1
+      ],
+      "lastAlive": "2021-12-06T09:10:31.102807+09:00",
+      "count": 0,
+      "status": 0,
+      "arg": "",
+      "duration": 10
+    }
+  }
+]
