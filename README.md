@@ -12,5 +12,16 @@ service_provider : example service provider
 
 integration_provider: integration service.
 
+# Setup
+update git submodules
+ we use nodeserv and synerex_server.
+```
+git submodule init --update
+```
+
+cd manager
+go build
+
+
 # How to run
 
