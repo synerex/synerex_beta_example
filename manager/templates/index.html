@@ -33,28 +33,32 @@
       Start NodeServer
     </button>
 
-    <div class="terminaljs" id="nodeterm"></div>
+    <div class="terminaljs" id="node-server"></div>
     <span>
       <button id="startSx">
         Start Synerex Server
       </button>
     </span>
-     <div class="terminaljs" id="sxterm"></div>
+     <div class="terminaljs" id="sx-server"></div>
     <span> 
       <button id="startUser"> UserProvider </button>
       <button id="getMenu"> menu </button> 
     </span>
     <br />
-    <div class="terminaljs" id="auxterm"></div>
-    <div class="demo">
-      <div id="usage"></div>
+    <div class="terminaljs" id="user-provider"></div>
+    <div>
+      <table class="mtbl" id="menutable">
+        <tr>
+          <th>No. </th> <th> Shop </th> <th> Item </th> <th> Price </th>
+        </tr>
+      </table>
     </div>
 
-    <table class="mtbl" id="menutable">
-      <tr>
-        <th>No. </th> <th> Shop </th> <th> Item </th> <th> Price </th>
-      </tr>
-    </table>
+    <button id="startSvc1"> ServiceProvider1 </button>
+    <div class="terminaljs" id="svc1-provider"></div>
+    <button id="startSvc2"> ServiceProvider2 </button>
+    <div class="terminaljs" id="svc2-provider"></div>
+
     <script>
       var terms=[];
       var mtable = document.getElementById('menutable');
@@ -92,7 +96,7 @@
                           v.term.write(str)
                           v.term.write("\n\r")
                           v.p.scrollTo({
-                            top: (v.term.state.cursor.y-10)*7,
+                            top: (v.term.state.cursor.y-10)*15,
                             left:0,
                             behavior: 'smooth'
                           })
@@ -105,36 +109,48 @@
         connect()
 
  
-        nodeterm = document.getElementById('nodeterm');
-        var nodeT = new Terminal({columns:120, rows:10});
+        nodeterm = document.getElementById('node-server');
+        var nodeT = new Terminal({columns:120, rows:20});
         nodeT.dom(nodeterm);
 //        nodeT.write("Test!");
-        terms.push({id: "nodeterm", term: nodeT, p:nodeterm});
+        terms.push({id: "node-server", term: nodeT, p:nodeterm});
 
-        sxterm = document.getElementById('sxterm');
-        var sxT = new Terminal({columns:120, rows:10});
+        sxterm = document.getElementById('sx-server');
+        var sxT = new Terminal({columns:120, rows:20});
         sxT.dom(sxterm);
 //        sxT.write("SxTerm!");
-        terms.push({id: "sxterm", term: sxT, p:sxterm});
+        terms.push({id: "sx-server", term: sxT, p:sxterm});
 
-        auxterm = document.getElementById('auxterm');
-        var auxT = new Terminal({columns:120, rows:10});
+        auxterm = document.getElementById('user-provider');
+        var auxT = new Terminal({columns:120, rows:40});
         auxT.dom(auxterm);
-        terms.push({id: "auxterm", term: auxT, p:auxterm});
+        terms.push({id: "user-provider", term: auxT, p:auxterm});
+
+        svc1term = document.getElementById('svc1-provider');
+        var svc1T = new Terminal({columns:120, rows:40});
+        svc1T.dom(svc1term);
+        terms.push({id: "svc1-provider", term: svc1T, p:svc1term});
+
+        svc2term = document.getElementById('svc2-provider');
+        var svc2T = new Terminal({columns:120, rows:40});
+        svc2T.dom(svc2term);
+        terms.push({id: "svc2-provider", term: svc2T, p:svc2term});
+
+
 
         var stNode = document.getElementById('startNode');
         stNode.addEventListener('click', function(){
-          console.log("send! nodeterm")
-          conn.send("nodeterm,../nodeserv/nodeserv");
+          console.log("send! node-server")
+          conn.send("node-server,../nodeserv/nodeserv");
         })
         var stNode = document.getElementById('startSx');
         stNode.addEventListener('click', function(){
           console.log("send! sxterm")
-          conn.send("sxterm,../synerex_server/synerex-server");
+          conn.send("sx-server,../synerex_server/synerex-server");
         })
         var userNode = document.getElementById('startUser');
         userNode.addEventListener('click', function(){
-          conn.send("auxterm,../user_provider/user_provider");
+          conn.send("user-provider,../user_provider/user_provider");
         })
 
         var userMenu = document.getElementById('getMenu');
@@ -152,6 +168,16 @@
             })
           } 
         });
+
+        var svc1Node = document.getElementById('startSvc1');
+        svc1Node.addEventListener('click', function(){
+          conn.send("svc1-provider,../service_provider/service_provider");
+        })
+
+        var svc2Node = document.getElementById('startSvc2');
+        svc2Node.addEventListener('click', function(){
+          conn.send("svc2-provider,../service_provider/service_provider -products ocha:2,coffee:4");
+        })
 
         
 

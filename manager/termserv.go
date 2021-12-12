@@ -2,15 +2,21 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+var (
+	jaegerHost = flag.String("jaegerHost", "127.0.0.1", "OpenTelemetry Jaeger host")
 )
 
 // terminal service using WebScoket
@@ -26,6 +32,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// variable for keeping running commands.
 var runCmds map[string]*exec.Cmd
 
 // websocket clients
@@ -201,6 +208,8 @@ func (ts *TServ) runCommand(termId string, cmdStr string) {
 			pcmd.Process.Kill()
 			pcmd.Process.Wait() // wait until the process stops.
 			log.Printf("killed process %#v", pcmd)
+			ts.sendTerm(termId, "process "+cmdStr+" stopped!")
+
 			/*			if pcmd.ProcessState.Exited() {
 							log.Printf("Process %s stopped and restart", cmdStr)
 							ts.sendTerm(termId, "process "+cmdStr+" restart!")
@@ -209,13 +218,24 @@ func (ts *TServ) runCommand(termId string, cmdStr string) {
 							log.Printf("Can't stop the process %#v %s", pcmd, pcmd.ProcessState.String())
 						}
 			*/
+
 		}
 		delete(runCmds, cmdStr)
+		//toggle run/start
+		return
 	}
+	// if cmdStr contains space, we should split them.
+	args := strings.Fields(cmdStr)
+	cmd := exec.Command(args[0], args[1:]...)
 
-	cmd := exec.Command(cmdStr)
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
+	// we need to setup environment variable.
+	cmd.Env = append(os.Environ(),
+		"OTEL_EXPORTER_JAEGER_AGENT_HOST="+*jaegerHost,
+		"OTEL_EXPORTER_JAEGER_ENDPOINT=http://"+*jaegerHost+":14267/api/traces",
+		"OTEL_SERVICE_NAME="+termId,
+	)
 	err := cmd.Start() //
 	if err != nil {
 		log.Printf("Cmd %s start Error:%v", cmdStr, err)
