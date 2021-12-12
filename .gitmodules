@@ -4,3 +4,6 @@
 [submodule "synerex_server"]
 	path = synerex_server
 	url = https://github.com/synerex/synerex_server.git
+[submodule "synerex_sxutil"]
+	path = synerex_sxutil
+	url = https://github.com/synerex/synerex_sxutil.git
