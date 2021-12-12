@@ -283,6 +283,7 @@ func servWS(ws *WSServ, w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	flag.Parse()
 	go sxutil.HandleSigInt()
 	sxutil.RegisterDeferFunction(sxutil.UnRegisterNode)
 	log.Printf("User Provider(%s) built %s sha1 %s", sxutil.GitVer, sxutil.BuildTime, sxutil.Sha1Ver)
