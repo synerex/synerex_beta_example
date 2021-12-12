@@ -71,6 +71,7 @@ func demandOrderCallback(clt *sxutil.SXServiceClient, dm *api.Demand) {
 		en, _ := proto.Marshal(ord)
 
 		spo := &sxutil.SupplyOpts{
+			JSON:   dm.ArgJson,
 			Target: dm.Id,
 			Name:   "SupplyOrder",
 			Cdata: &api.Content{
@@ -177,6 +178,14 @@ func main() {
 		sxServerAddress = *localsx
 	}
 	log.Printf("Connecting SynerexServer at [%s]", sxServerAddress)
+
+	tracer := sxutil.NewOltpTracer()
+	defer func() {
+		log.Printf("Closing oltp traceer")
+		if err := tracer.Shutdown(context.Background()); err != nil {
+			log.Printf("Can't shoutdown tracer %v", err)
+		}
+	}()
 
 	wg := sync.WaitGroup{} // for syncing other goroutines
 
