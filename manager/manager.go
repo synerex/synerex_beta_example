@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
+	"path"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -74,7 +76,9 @@ func main() {
 	}))
 	router.Static("/static", "./static")
 
-	router.LoadHTMLGlob("templates/*.html")
+	execPath, _ := os.Executable()
+	templatePath := path.Join(path.Dir(execPath), "templates/*.html")
+	router.LoadHTMLGlob(templatePath)
 	//	router.GET("/", index)
 
 	// websocket terminal server

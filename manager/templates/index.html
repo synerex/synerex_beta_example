@@ -163,6 +163,7 @@
             console.log("Menu connected!");
           }  
           menuCon.onmessage = (evt) =>{
+            console.log("WS message",evt.data);
             obj = JSON.parse(event.data);
             obj.items.foreach( (o)=>{
             })
