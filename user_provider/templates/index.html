@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title> Synerex Beta Example : User Provider</title>
+    <link rel="stylesheet" href="static/term.css">
+    <script src = "static/terminal.min.js"> </script>
+
+    <style>
+      .demo {
+        width: 500px;
+      }
+  
+  
+      #usage {
+        font-family: Consolas, Menlo, Monaco, monospace;
+        background-color: #2A242D;
+        color: #FDFBFB;
+        font-size: 12px;
+      }
+    </style>
+</head>
+<body>
+   <div>
+        Synerex beta example : User Provider
+   </div>
+  
+   <a href="/menu"> Menu </a>
+
+   <script>
+
+    (function(){
+        var conn;
+
+        function connect(){
+            conn = new WebSocket("ws://"+document.location.host+"/ws");
+            conn.onclose = function(evt){
+              console.log("WS Closed");
+              setTimeout(function(){  // retry connect
+                connect();
+              }, 1000);
+            }
+            conn.onopen = function(evt){
+              console.log("WS Connected");
+            }
+            conn.onmessage = function(evt){
+                console.log("Event:",event.data);
+            }
+        }
+
+        connect();
+       
+    })()
+
+
+   </script>
+</body>
+</html>

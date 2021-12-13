@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -282,6 +285,12 @@ func servWS(ws *WSServ, w http.ResponseWriter, r *http.Request) {
 	go client.readPump()
 }
 
+func index(ctx *gin.Context) {
+	log.Printf("Get index: %#v", ctx)
+	ctx.Header("Access-Control-Allow-Origin", "*")
+	ctx.HTML(200, "index.html", gin.H{"data": "Hello"})
+}
+
 func main() {
 	flag.Parse()
 	go sxutil.HandleSigInt()
@@ -328,11 +337,17 @@ func main() {
 	go subscribeOrderSupply(geClient)
 
 	router := gin.Default()
+	execBin, _ := os.Executable()
+	execPath := filepath.Dir(execBin)
+	templatePath := path.Join(execPath, "templates/*.html")
+	log.Printf("TemplatePath: %s", templatePath)
+	router.Static("/static", "./static")
+	router.LoadHTMLGlob(templatePath)
+
 	router.GET("/menu", func(c *gin.Context) {
 		log.Printf("Get from %#v", c)
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("getMenu"))
-
 		sendDemand(geClient)
 	})
 
@@ -342,6 +357,7 @@ func main() {
 		servWS(ws, c.Writer, c.Request)
 	})
 
+	router.GET("/", index)
 	router.Run(":8081")
 
 	wg.Wait()
