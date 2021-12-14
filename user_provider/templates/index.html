@@ -51,9 +51,22 @@
   </div>
 
    <script>
+    
 
     (function(){
         var conn;
+
+        var mtbl = document.getElementById('menutable');
+        function setItem(items){
+            console.log("SetItem:",items);
+            var row = mtbl.insertRow(-1);
+//            for 
+            var td = row.insertCell(-1);
+
+
+
+
+        }
 
         function connect(){
             console.log("Connecting!","ws://"+document.location.host+"/ws")
@@ -70,6 +83,17 @@
             }
             conn.onmessage = function(evt){
                 console.log("Event:",event.data);
+                // we need to set Menu items.
+                var cmloc = event.data.indexOf(',');
+                var cmd = event.data.substring(0,cmloc);
+                if (cmd=='order'){
+                    var js  = JSON.parse(event.data.substring(cmloc+1));
+                    setItem(js);
+                }else {
+                    console.log("Other Command:",cmd);
+
+                }
+
             }
         }
         var userMenu = document.getElementById('getMenu');
