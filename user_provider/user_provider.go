@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -32,15 +34,19 @@ var (
 	mu              sync.Mutex
 	tracer          trace.Tracer
 	sxServerAddress string
+	mainWs          *WSServ
 )
 
 const orderChannel uint32 = 1 // just for private
 var lastMyOrder uint64
 
+var orderMap map[uint64][]*order.Order = make(map[uint64][]*order.Order)
+
 // order supply from Services.
 func supplyOrderCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 	od := &order.Order{}
 	dt := sp.Cdata.Entity
+	log.Printf("Got Supply #%v", sp)
 	err := proto.Unmarshal(dt, od)
 	if err == nil {
 		log.Printf("got order! %s %#v", sp.SupplyName, *od)
@@ -57,13 +63,17 @@ func supplyOrderCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 				)
 				// list up orders for selection.
 				fmt.Printf("Get %d Items!\n", len(od.Items))
+				orderMap[lastMyOrder] = append(orderMap[lastMyOrder], od)
 				for i := range od.Items {
 					fmt.Printf("%d: %s, price:%d\n", i, od.Items[i].Name, od.Items[i].Price)
 				}
 				// send order information to WebSocketClients.
-
+				jsonData, _ := json.Marshal(od.Items)
+				mainWs.broadcast <- []byte("order," + string(jsonData))
 				// is OK to end span?
 				span.End()
+			} else {
+				log.Printf("Not last my order %x %#v", lastMyOrder, sp)
 			}
 		}
 	}
@@ -130,10 +140,11 @@ func sendDemand(client *sxutil.SXServiceClient) {
 	span.AddEvent("beforeSending")
 
 	lastMyOrder, _ = client.NotifyDemand(opts)
+	orderMap[lastMyOrder] = make([]*order.Order, 0)
 	span.AddEvent("afterSending")
 	log.Printf("Send Demand %#v", opts)
-	log.Printf("SpanEnd! %v", span)
-	log.Printf("SpanEnd! %#v", span)
+	//	log.Printf("SpanEnd! %v", span)
+	//	log.Printf("SpanEnd! %#v", span)
 	span.End()
 
 }
@@ -175,6 +186,7 @@ func (ws *WSServ) run() {
 				close(client.send)
 			}
 		case message := <-ws.broadcast: // broadcasting to all clients.
+			log.Printf("Broadcasting!", message, len(ws.clients))
 			for client := range ws.clients {
 				select { // non-blocking send
 				case client.send <- message:
@@ -198,10 +210,42 @@ const (
 	maxMessageSize = 512
 )
 
-func (ts *WSServ) messageHandler(msg []byte) {
+func itemList() []*order.Item {
+	keys := make([]uint64, len(orderMap))
+	i := 0
+	itemLen := 0
+	for k := range orderMap {
+		keys[i] = k
+		itemLen += len(orderMap[k])
+		i++
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	items := make([]*order.Item, itemLen)
+	i = 0
+	for _, k := range keys {
+		ods := orderMap[k]
+		for _, od := range ods {
+			for _, itms := range od.Items {
+				items[i] = itms
+				i++
+			}
+		}
+	}
+	return items
+}
+
+func (c *WClient) messageHandler(msg []byte) {
 	// handling message from client
 	str := string(msg)
 	log.Printf("get message[%s]", str)
+	switch str {
+	case "getall":
+		lst := itemList()
+		for itm := range lst {
+			jsonData, _ := json.Marshal(itm)
+			c.send <- []byte("order," + string(jsonData))
+		}
+	}
 
 }
 
@@ -222,7 +266,9 @@ func (c *WClient) readPump() {
 			}
 			break
 		}
-		go c.ws.messageHandler(message)
+		//		go c.ws.messageHandler(message)
+		go c.messageHandler(message)
+		//		go c.ws.messageHandler(message)
 	}
 }
 func (c *WClient) writePump() {
@@ -277,6 +323,7 @@ func servWS(ws *WSServ, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := &WClient{ws: ws, conn: conn, send: make(chan []byte, 256)}
+	log.Printf("WS Connected:%#v", client)
 	ws.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
@@ -349,13 +396,15 @@ func main() {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("getMenu"))
 		sendDemand(geClient)
+		//		index(c)
 	})
 
-	ws := NewWSServ() // web socket server
+	mainWs = NewWSServ() // web socket server
 	// for websocket
 	router.GET("/ws", func(c *gin.Context) {
-		servWS(ws, c.Writer, c.Request)
+		servWS(mainWs, c.Writer, c.Request)
 	})
+	go mainWs.run()
 
 	router.GET("/", index)
 	router.Run(":8081")

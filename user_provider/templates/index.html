@@ -3,13 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <title> Synerex Beta Example : User Provider</title>
-    <link rel="stylesheet" href="static/term.css">
-    <script src = "static/terminal.min.js"> </script>
 
     <style>
       .demo {
         width: 500px;
       }
+      table {
+        border-collapse: collapse;
+        border: 2px solid rgb(200,200,200);
+        font-size: 0.8em;
+    }
+    
+    th {
+        border: 1px solid rgb(190,190,190);
+    }
+    
+    th[scope="row"] {
+        background-color: #696969;
+        color: #fff;
+    }
+    
   
   
       #usage {
@@ -25,7 +38,17 @@
         Synerex beta example : User Provider
    </div>
   
-   <a href="/menu"> Menu </a>
+   <button id="getMenu"> menu </button> 
+
+   <br />
+   <br />
+   <div>
+    <table class="mtbl" id="menutable">
+      <tr>
+        <th>No. </th> <th> Shop </th> <th> Item </th> <th> Price </th>
+      </tr>
+    </table>
+  </div>
 
    <script>
 
@@ -33,6 +56,7 @@
         var conn;
 
         function connect(){
+            console.log("Connecting!","ws://"+document.location.host+"/ws")
             conn = new WebSocket("ws://"+document.location.host+"/ws");
             conn.onclose = function(evt){
               console.log("WS Closed");
@@ -42,13 +66,22 @@
             }
             conn.onopen = function(evt){
               console.log("WS Connected");
+              conn.send("getall"); // send get current menu data!
             }
             conn.onmessage = function(evt){
                 console.log("Event:",event.data);
             }
         }
+        var userMenu = document.getElementById('getMenu');
+        userMenu.addEventListener('click', function(){
+          console.log("Do menu!")
+          fetch("http://"+document.location.host+"/menu").then( data => data.text()).then(
+            data => console.log(data));
+        });
 
+        console.log("start function");
         connect();
+        console.log("end function");
        
     })()
 
