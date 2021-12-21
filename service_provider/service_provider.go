@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	proto "github.com/golang/protobuf/proto"
+	proto "google.golang.org/protobuf/proto"
 
 	api "github.com/synerex/synerex_api"
 	order "github.com/synerex/synerex_beta_example/proto_order"
@@ -19,12 +19,11 @@ import (
 )
 
 var (
-	nodesrv         = flag.String("nodesrv", "127.0.0.1:9990", "Node ID Server")
-	localsx         = flag.String("local", "", "Local Synerex Server")
-	products        = flag.String("products", "noriben:2,karaage:1", "Products list")
-	ptype           = flag.String("ptype", "food", "Product type")
-	pvname          = flag.String("name", "SrvcPrvdr", "Set provider name")
-	mu              sync.Mutex
+	nodesrv               = flag.String("nodesrv", "127.0.0.1:9990", "Node ID Server")
+	localsx               = flag.String("local", "", "Local Synerex Server")
+	products              = flag.String("products", "noriben:2,karaage:1", "Products list")
+	ptype                 = flag.String("ptype", "food", "Product type")
+	pvname                = flag.String("name", "SrvcPrvdr", "Set provider name")
 	oid             int32 = 100
 	prodlist        []*Product
 	propMap         map[uint64]*sxutil.SupplyOpts
@@ -99,35 +98,6 @@ func subscribeOrderDemand(client *sxutil.SXServiceClient) {
 			client.SXClient = newClt
 		}
 	}
-}
-
-func sendDemand(client *sxutil.SXServiceClient) {
-	// order food and beverage
-
-	itf := &order.Item{
-		Id:   0,
-		Type: order.ItemType_FOOD,
-	}
-	itb := &order.Item{
-		Id:   1,
-		Type: order.ItemType_BEVERAGE,
-	}
-
-	ord := order.Order{
-		OrderId: 0,
-		Items:   []*order.Item{itf, itb},
-	}
-	et, _ := proto.Marshal(&ord)
-
-	opts := &sxutil.DemandOpts{
-		Name: "OrderDemand",
-		Cdata: &api.Content{
-			Entity: et,
-		},
-	}
-
-	client.NotifyDemand(opts)
-
 }
 
 type Product struct {
