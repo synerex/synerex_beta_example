@@ -233,7 +233,7 @@ func (ts *TServ) runCommand(termId string, cmdStr string) {
 	// we need to setup environment variable.
 	cmd.Env = append(os.Environ(),
 		"OTEL_EXPORTER_JAEGER_AGENT_HOST="+*jaegerHost,
-		"OTEL_EXPORTER_JAEGER_ENDPOINT=http://"+*jaegerHost+":14267/api/traces",
+		"OTEL_EXPORTER_JAEGER_ENDPOINT=http://"+*jaegerHost+":14268/api/traces",
 		"OTEL_SERVICE_NAME="+termId,
 	)
 	err := cmd.Start() //
@@ -241,7 +241,7 @@ func (ts *TServ) runCommand(termId string, cmdStr string) {
 		log.Printf("Cmd %s start Error:%v", cmdStr, err)
 		return // do not stream..
 	} else {
-		log.Printf("%s:Cmd %s starts!", termId, cmdStr)
+		log.Printf("%s:Cmd %s starts! with env %#v", termId, cmdStr, cmd.Env)
 		runCmds[cmdStr] = cmd
 	}
 

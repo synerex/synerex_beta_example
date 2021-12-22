@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -9,9 +10,17 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/nkawa/go-gin/ginhttp"
-	opentracing "github.com/opentracing/opentracing-go"
-	jaegercfg "github.com/uber/jaeger-client-go/config"
+	"github.com/opentracing/opentracing-go"
+
+	"go.opentelemetry.io/otel"
+
+	//	stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	// for gin middleware
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
 //func index(ctx *gin.Context) {
@@ -19,24 +28,34 @@ import (
 //	ctx.HTML(200, "index.html", gin.H{"data": "Hello"})
 //}
 
+// Init configures an OpenTelemetry exporter and trace provider
+func NewOltpTracer() *sdktrace.TracerProvider {
+	//	exporter, err := stdout.New(stdout.WithPrettyPrint())
+	// Jaeger Exporter is also defined through Env var
+	//     OTEL_EXPORTER_JAEGER_AGENT_HOST=127.0.0.1 ,
+	//     OTEL_EXPORTER_JAEGER_ENDPOINT=http://127.0.0.1:14268/api/traces
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint("http://" + *jaegerHost + ":14268/api/traces")))
+	if err != nil {
+		log.Fatal("mgr:Can't open jaeger exporter ", err)
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	return tp
+}
+
 func main() {
 	flag.Parse()
 
-	cfg, err := jaegercfg.FromEnv() // get envionment variable
-	if err != nil {
-		log.Printf("Can't obtain jaeger env vars: %s", err.Error())
-	} else {
-		log.Printf("Configuration: %#v", cfg)
-	}
-
-	tracer, closer, err := cfg.NewTracer()
-	//		jaeger.NewConstSampler(true),
-	//		jaeger.NewInMemoryReporter(),
-	//	)
-	if err != nil {
-		log.Printf("Can't initialize jaeger trace %s:", err.Error())
-	}
-	defer closer.Close()
+	tp := NewOltpTracer()
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Printf("Error shutting down tracer provider: %v", err)
+		}
+	}()
 
 	fn := func(ctx *gin.Context) {
 		span := opentracing.SpanFromContext(ctx.Request.Context())
@@ -49,7 +68,7 @@ func main() {
 	}
 
 	router := gin.New()
-	router.Use(ginhttp.Middleware(tracer))
+	router.Use(otelgin.Middleware("ex-manager"))
 	//  router.Use(gin.LOgger())
 	//  router.Use(gin.Recovery())
 

@@ -165,12 +165,12 @@
 
         var svc1Node = document.getElementById('startSvc1');
         svc1Node.addEventListener('click', function(){
-          conn.send("svc1-provider,../service_provider/service_provider");
+          conn.send("svc1-provider,../service_provider/service_provider -name svc1-prov -ptype food");
         })
 
         var svc2Node = document.getElementById('startSvc2');
         svc2Node.addEventListener('click', function(){
-          conn.send("svc2-provider,../service_provider/service_provider -products ocha:2,coffee:4");
+          conn.send("svc2-provider,../service_provider/service_provider -name svc2-prov -ptype beverage -products ocha:300:2,coffee:350:4");
         })
 
         
