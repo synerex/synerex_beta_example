@@ -13,6 +13,7 @@ require (
 	go.opentelemetry.io/otel v1.3.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.3.0 // indirect
 	go.opentelemetry.io/otel/trace v1.3.0
+	google.golang.org/protobuf v1.27.1
 )
 
 replace github.com/synerex/synerex_beta_example/proto_order => ../proto_order

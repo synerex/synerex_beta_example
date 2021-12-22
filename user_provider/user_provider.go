@@ -10,13 +10,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
-	proto "github.com/golang/protobuf/proto"
+	proto "google.golang.org/protobuf/proto"
 
 	api "github.com/synerex/synerex_api"
 	order "github.com/synerex/synerex_beta_example/proto_order"
@@ -31,15 +30,15 @@ import (
 var (
 	nodesrv         = flag.String("nodesrv", "127.0.0.1:9990", "Node ID Server")
 	localsx         = flag.String("local", "", "Local Synerex Server")
-	mu              sync.Mutex
 	tracer          trace.Tracer
 	sxServerAddress string
 	mainWs          *WSServ
 )
 
 const orderChannel uint32 = 1 // just for private
-var lastMyOrder uint64
+var lastMyOrder uint64        // for keep last "NofityDemand" id.
 
+// map between "NotifyDemand" and its reply("ProposeSupply") orders
 var orderMap map[uint64][]*order.Order = make(map[uint64][]*order.Order)
 
 // order supply from Services.
@@ -68,7 +67,7 @@ func supplyOrderCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 					fmt.Printf("%d: %s, price:%d\n", i, od.Items[i].Name, od.Items[i].Price)
 				}
 				// send order information to WebSocketClients.
-				jsonData, _ := json.Marshal(od.Items)
+				jsonData, _ := json.Marshal(od)
 				mainWs.broadcast <- []byte("order," + string(jsonData))
 				// is OK to end span?
 				span.End()
@@ -139,7 +138,7 @@ func sendDemand(client *sxutil.SXServiceClient) {
 	}
 	span.AddEvent("beforeSending")
 
-	lastMyOrder, _ = client.NotifyDemand(opts)
+	lastMyOrder, _ = client.NotifyDemand(opts) // keep lastMyOrder as a order number(id)
 	orderMap[lastMyOrder] = make([]*order.Order, 0)
 	span.AddEvent("afterSending")
 	log.Printf("Send Demand %#v", opts)
@@ -210,28 +209,31 @@ const (
 	maxMessageSize = 512
 )
 
-func itemList() []*order.Item {
-	keys := make([]uint64, len(orderMap))
-	i := 0
-	itemLen := 0
-	for k := range orderMap {
-		keys[i] = k
-		itemLen += len(orderMap[k])
-		i++
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
-	items := make([]*order.Item, itemLen)
-	i = 0
-	for _, k := range keys {
-		ods := orderMap[k]
-		for _, od := range ods {
-			for _, itms := range od.Items {
-				items[i] = itms
-				i++
+func orderList() []*order.Order {
+	// get current orders
+	return orderMap[lastMyOrder]
+	/*	keys := make([]uint64, len(orderMap))
+		i := 0
+		itemLen := 0
+		for k := range orderMap {
+			keys[i] = k
+			itemLen += len(orderMap[k])
+			i++
+		}
+		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+		items := make([]*order.Item, itemLen)
+		i = 0
+		for _, k := range keys {
+			ods := orderMap[k]
+			for _, od := range ods {
+				for _, itms := range od.Items {
+					items[i] = itms
+					i++
+				}
 			}
 		}
-	}
-	return items
+		return items
+	*/
 }
 
 func (c *WClient) messageHandler(msg []byte) {
@@ -240,10 +242,13 @@ func (c *WClient) messageHandler(msg []byte) {
 	log.Printf("get message[%s]", str)
 	switch str {
 	case "getall":
-		lst := itemList()
-		for itm := range lst {
+		lst := orderList()
+		for _, itm := range lst {
 			jsonData, _ := json.Marshal(itm)
+			log.Printf("Response to send %s : %#v", string(jsonData), itm)
 			c.send <- []byte("order," + string(jsonData))
+			// may insert sleep.
+
 		}
 	}
 
@@ -293,12 +298,13 @@ func (c *WClient) writePump() {
 			}
 			w.Write(message)
 
+			/* should not do this
 			// Add queued chat messages to the current websocket message.
 			n := len(c.send) //
 			for i := 0; i < n; i++ {
 				w.Write(<-c.send)
-			}
-
+				}
+			*/
 			if err := w.Close(); err != nil {
 				return
 			}
@@ -356,7 +362,7 @@ func main() {
 			log.Printf("Can't shoutdown tracer %v", err)
 		}
 	}()
-	tracer = otel.Tracer("user_provider", trace.WithInstrumentationVersion("0.0.1"))
+	tracer = otel.Tracer("user_provider", trace.WithInstrumentationVersion("up:0.0.1"))
 	log.Printf("Tracer generated %#v", tracer)
 
 	if rerr != nil {
@@ -395,6 +401,10 @@ func main() {
 		log.Printf("Get from %#v", c)
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("getMenu"))
+
+		// should clean! Webpage.
+		mainWs.broadcast <- []byte("clean,")
+
 		sendDemand(geClient)
 		//		index(c)
 	})
