@@ -16,8 +16,13 @@
     
     th {
         border: 1px solid rgb(190,190,190);
+        width: 100px;
     }
-    
+    td {
+      border: 1px solid rgb(190,190,190);
+      text-align: center;
+  }
+  
     th[scope="row"] {
         background-color: #696969;
         color: #fff;
@@ -37,36 +42,96 @@
    <div>
         Synerex beta example : User Provider
    </div>
-  
-   <button id="getMenu"> menu </button> 
+   <br />  
+   <button id="getMenu"> Get Menu </button> 
 
    <br />
    <br />
    <div>
     <table class="mtbl" id="menutable">
       <tr>
-        <th>No. </th> <th> Shop </th> <th> Item </th> <th> Price </th>
+        <th>No. </th> <th> Shop </th> <th> Type </th> <th> Item </th> <th> Price </th> <th>  Order </th>
       </tr>
     </table>
   </div>
+  <br />
+  <br />
 
-   <script>
-    
+  <button id="doOrder"> Do Order </button> 
+  <div id="response">
+  
+  </div>
+
+  <script>
+    var shopMap= new Map(); // for maps.
+    const typeStr = ["","food","beverage"];
+    var itemList = []; // for itemList
 
     (function(){
         var conn;
 
         var mtbl = document.getElementById('menutable');
-        function setItem(items){
-            console.log("SetItem:",items);
-            var row = mtbl.insertRow(-1);
-//            for 
-            var td = row.insertCell(-1);
+        function setItem(order){
+            console.log("SetItem:",order);
 
+            var sp = order.shops
+            sp.forEach((v) =>{
+              if (! shopMap.has(v.shop_id)) {
+                shopMap.set(v.shop_id, v.name)
+              }
+            })
+            var it = order.items 
+            it.forEach((v) => {
+              var row = mtbl.insertRow(-1);
+              var ncell = row.insertCell(-1);
+              ncell.appendChild(document.createTextNode((itemList.length+1).toString())) // always +1
+
+              // shopname
+              var sname = shopMap.get(v.shop_id); // must exist!(so no check..)
+              var settxt = document.createTextNode(sname);
+              row.insertCell(-1).appendChild(settxt); //shopname
+              // itemType
+              row.insertCell(-1).appendChild(document.createTextNode( typeStr[v.type]));
+              row.insertCell(-1).appendChild(document.createTextNode(v.name));
+              row.insertCell(-1).appendChild(document.createTextNode(v.price.toString()));
+              
+              // now orderButtons:
+              var b1 = document.createElement("button"); b1.innerHTML= "ー";
+              var b2 = document.createElement("button"); b2.innerHTML= "＋";
+              var c = document.createTextNode(" 0 ");
+              var ocell = row.insertCell(-1)
+              ocell.appendChild(b1);
+              ocell.appendChild(c);
+              ocell.appendChild(b2);
+              function evp(ev)  {
+                var cv = parseInt(c.textContent);
+                cv += 1;
+                c.textContent = " "+cv+" ";               
+              }
+              function evm(ev)  {
+                var cv = parseInt(c.textContent);
+                cv -= 1;
+                if(cv < 0){
+                  cv = 0;
+                }
+                c.textContent = " "+cv+" ";               
+              }
+              b1.addEventListener("click",evm);
+              b2.addEventListener("click",evp);
+              itemList.push(v);
+            })
 
 
 
         }
+        function cleanMenu(){
+          itemList.forEach(()=>{
+            mtbl.deleteRow(-1);
+          });
+          itemList = [];
+          // may clean shopmap..
+        }
+        
 
         function connect(){
             console.log("Connecting!","ws://"+document.location.host+"/ws")
@@ -89,7 +154,10 @@
                 if (cmd=='order'){
                     var js  = JSON.parse(event.data.substring(cmloc+1));
                     setItem(js);
-                }else {
+                }else if (cmd=='clean'){ // should clean
+                  console.log("CleanMenu", itemList.length);
+                    cleanMenu();
+                }else{
                     console.log("Other Command:",cmd);
 
                 }
@@ -101,6 +169,18 @@
           console.log("Do menu!")
           fetch("http://"+document.location.host+"/menu").then( data => data.text()).then(
             data => console.log(data));
+        });
+
+        var doOrder = document.getElementById('doOrder');
+        doOrder.addEventListener('click', function(){
+          console.log("do Order!");
+          // check counts
+
+          // do order
+          if (orderCount.length > 0){
+            conn.send("order,"+orderCount);
+          }
+          // set count to zero!
         });
 
         console.log("start function");
