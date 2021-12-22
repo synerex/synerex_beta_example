@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +20,7 @@ import (
 var (
 	nodesrv               = flag.String("nodesrv", "127.0.0.1:9990", "Node ID Server")
 	localsx               = flag.String("local", "", "Local Synerex Server")
-	products              = flag.String("products", "noriben:2,karaage:1", "Products list")
+	products              = flag.String("products", "noriben:360:2,karaage:450:1", "Products list:price:stock")
 	ptype                 = flag.String("ptype", "food", "Product type")
 	pvname                = flag.String("name", "SrvcPrvdr", "Set provider name")
 	oid             int32 = 100
@@ -50,7 +49,7 @@ func demandOrderCallback(clt *sxutil.SXServiceClient, dm *api.Demand) {
 				Type:   prodlist[i].Type,
 				Name:   prodlist[i].Name,
 				Stock:  int32(prodlist[i].Count),
-				Price:  int32(350 + rand.Intn(10)*20),
+				Price:  int32(prodlist[i].Price),
 			})
 		}
 		shops := []*order.Shop{
@@ -104,6 +103,7 @@ type Product struct {
 	Name  string
 	Count int
 	Type  order.ItemType
+	Price int
 }
 
 func main() {
@@ -125,15 +125,17 @@ func main() {
 	fmt.Printf("Product list: %v\n", prods)
 	for i := range prods {
 		vc := strings.Split(prods[i], ":")
-		ct, _ := strconv.Atoi(vc[1])
+		pr, _ := strconv.Atoi(vc[1])
+		ct, _ := strconv.Atoi(vc[2])
 
 		prod := &Product{
 			Name:  vc[0],
 			Count: ct,
 			Type:  prodType,
+			Price: pr,
 		}
 		prodlist = append(prodlist, prod)
-		fmt.Printf("%d: %s, %d\n", i, vc[0], ct)
+		fmt.Printf("%d: %s, %d, %d\n", i, vc[0], pr, ct)
 	}
 
 	channelTypes := []uint32{orderChannel} // use sample channel type

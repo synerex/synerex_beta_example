@@ -10,6 +10,7 @@ require (
 	github.com/synerex/synerex_sxutil v0.7.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.28.0 // indirect
 	go.opentelemetry.io/otel/exporters/jaeger v1.3.0 // indirect
+	google.golang.org/protobuf v1.27.1
 )
 
 replace github.com/synerex/synerex_beta_example/proto_order => ../proto_order
