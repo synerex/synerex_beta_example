@@ -254,7 +254,11 @@ func (ts *TServ) runCommand(termId string, cmdStr string) {
 	streamReader := func(st string, r io.Reader) {
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
-			outChan <- st + scanner.Text()
+			if loop {
+				outChan <- st + scanner.Text()
+			} else {
+				break
+			}
 		}
 		if loop {
 			select {
