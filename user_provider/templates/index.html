@@ -43,14 +43,15 @@
         Synerex beta example : User Provider
    </div>
    <br />  
-   <button id="getMenu"> Get Menu </button> 
+   <button id="getMenu"> Get Menu(Or) </button>     <button id="getMenu2"> Get Menu(And) </button> 
+
 
    <br />
    <br />
    <div>
     <table class="mtbl" id="menutable">
       <tr>
-        <th>No. </th> <th> Shop </th> <th> Type </th> <th> Item </th> <th> Price </th> <th>  Order </th>
+        <th>No. </th> <th> Shop </th> <th> Type </th> <th> Item </th> <th> Price </th><th> Stock</th> <th>  Order </th>
       </tr>
     </table>
   </div>
@@ -62,15 +63,32 @@
   
   </div>
 
+  <br />
+  <br />
+
+  <div>
+   <div>
+    <table class="mtbl" id="stock">
+      <tr>
+        <th>No. </th> <th> Shop </th> <th> Type </th> <th> Item </th> <th> Count</th> <th> Cost </th> </tr>
+    </table>
+  </div>
+  </div>
+
   <script>
     var shopMap= new Map(); // for maps.
-    const typeStr = ["","food","beverage"];
+    const typeStr = ["mixed","food","beverage"];
     var itemList = []; // for itemList
+    var lastOrder = null;
+    var orderedItemCount = 0;
 
     (function(){
         var conn;
 
         var mtbl = document.getElementById('menutable');
+        var stockTbl = document.getElementById('stock');
+        var mesg = document.getElementById('response');
+
         function setItem(order){
             console.log("SetItem:",order);
 
@@ -91,12 +109,22 @@
               var settxt = document.createTextNode(sname);
               row.insertCell(-1).appendChild(settxt); //shopname
               // itemType
-              row.insertCell(-1).appendChild(document.createTextNode( typeStr[v.type]));
+              var tp = v.type;
+              if (tp == undefined) {
+                tp = 0;
+              }
+          
+              row.insertCell(-1).appendChild(document.createTextNode( typeStr[tp]));
               row.insertCell(-1).appendChild(document.createTextNode(v.name));
               row.insertCell(-1).appendChild(document.createTextNode(v.price.toString()));
+              var sct = v.stock;
+              if (sct == undefined) {
+                sct = 0;
+              }
+              row.insertCell(-1).appendChild(document.createTextNode(sct.toString()));
               
               // now orderButtons:
-              var b1 = document.createElement("button"); b1.innerHTML= "ー";
+              var b1 = document.createElement("button"); b1.innerHTML= "－";
               var b2 = document.createElement("button"); b2.innerHTML= "＋";
               var c = document.createTextNode(" 0 ");
               var ocell = row.insertCell(-1)
@@ -121,9 +149,38 @@
               itemList.push(v);
             })
 
-
-
         }
+
+        function setMyOrder(order){
+          console.log("lastOrder",order);
+          var it = order 
+          it.forEach((v) => {
+            if (v.order> 0){
+              var row = stockTbl.insertRow(-1);
+              var ncell = row.insertCell(-1);
+              ncell.appendChild(document.createTextNode((orderedItemCount+1).toString())) // always +1
+
+            // shopname
+              var sname = shopMap.get(v.shop_id); // must exist!(so no check..)
+              var settxt = document.createTextNode(sname);
+              row.insertCell(-1).appendChild(settxt); //shopname
+              // itemType
+              var tp = v.type;
+              if (tp == undefined) {
+                tp = 0;
+              }        
+              row.insertCell(-1).appendChild(document.createTextNode( typeStr[tp]));
+              row.insertCell(-1).appendChild(document.createTextNode(v.name));
+              row.insertCell(-1).appendChild(document.createTextNode(v.order.toString())); // count              
+              row.insertCell(-1).appendChild(document.createTextNode((v.price * v.order).toString())); // cost
+              orderedItemCount +=1;
+            }
+          })
+
+      }
+
+
+
         function cleanMenu(){
           itemList.forEach(()=>{
             mtbl.deleteRow(-1);
@@ -131,8 +188,32 @@
           itemList = [];
           // may clean shopmap..
         }
-        
 
+        function addText(txt){
+          mesg.appendChild(document.createTextNode(txt));
+        }
+        function clearText(){
+          mesg.innerHTML = "";          
+        }
+        
+        function getOrder(){
+          clearText();
+          var newList = [];
+          //console.log("ItemList",itemList);
+          itemList.forEach((v,i)=>{
+            var cell = mtbl.rows[i+1].cells[6].innerText.split(' '); // order cell
+            //console.log("txt",cell[1]);
+            var ct = parseInt(cell[1]);
+            if (ct > 0){// if order is more than zero!
+              var cv = Object.assign({}, v); // shallow copy
+              cv.order = ct;
+              console.log("AddOrder:",ct, cv);
+              newList.push(cv);
+              addText("Shop:"+shopMap.get(cv.shop_id)+",Order:"+cv.name+",Count:"+ct+"\n");
+            }
+          });
+          return newList;
+        }
         function connect(){
             console.log("Connecting!","ws://"+document.location.host+"/ws")
             conn = new WebSocket("ws://"+document.location.host+"/ws");
@@ -151,12 +232,18 @@
                 // we need to set Menu items.
                 var cmloc = event.data.indexOf(',');
                 var cmd = event.data.substring(0,cmloc);
-                if (cmd=='order'){
+                if (cmd=='menu'){
                     var js  = JSON.parse(event.data.substring(cmloc+1));
-                    setItem(js);
+                    setItem(js); 
                 }else if (cmd=='clean'){ // should clean
                   console.log("CleanMenu", itemList.length);
                     cleanMenu();
+                }else if (cmd =='failed'){// order failed
+                   addText("... Order failed!\n");
+                }else if (cmd == 'confirmed'){
+                  addText("... Order Confirmed!\n");
+                  // need to show!
+                  setMyOrder(lastOrder);
                 }else{
                     console.log("Other Command:",cmd);
 
@@ -166,19 +253,26 @@
         }
         var userMenu = document.getElementById('getMenu');
         userMenu.addEventListener('click', function(){
-          console.log("Do menu!")
           fetch("http://"+document.location.host+"/menu").then( data => data.text()).then(
             data => console.log(data));
+        });
+        var userMenu2 = document.getElementById('getMenu2');
+        userMenu2.addEventListener('click', function(){
+          fetch("http://"+document.location.host+"/menu2").then( data => data.text()).then(
+            data => console.log("GetMenu2",data));
         });
 
         var doOrder = document.getElementById('doOrder');
         doOrder.addEventListener('click', function(){
           console.log("do Order!");
           // check counts
-
+          var orderList = getOrder();
           // do order
-          if (orderCount.length > 0){
-            conn.send("order,"+orderCount);
+          if (orderList.length > 0){
+            lastOrder = orderList;
+            var jsstr = JSON.stringify(orderList)
+            console.log("Order Json:",jsstr);
+            conn.send("order,"+jsstr);
           }
           // set count to zero!
         });

@@ -51,6 +51,8 @@
     <div class="terminaljs" id="svc1-provider"></div>
     <button id="startSvc2"> ServiceProvider2 </button>
     <div class="terminaljs" id="svc2-provider"></div>
+    <button id="startIntg"> IntegratedProvider </button>
+    <div class="terminaljs" id="intg-provider"></div>
 
     <script>
       var terms=[];
@@ -109,7 +111,7 @@
         terms.push({id: "node-server", term: nodeT, p:nodeterm});
 
         sxterm = document.getElementById('sx-server');
-        var sxT = new Terminal({columns:120, rows:20});
+        var sxT = new Terminal({columns:120, rows:60});
         sxT.dom(sxterm);
 //        sxT.write("SxTerm!");
         terms.push({id: "sx-server", term: sxT, p:sxterm});
@@ -128,6 +130,11 @@
         var svc2T = new Terminal({columns:120, rows:40});
         svc2T.dom(svc2term);
         terms.push({id: "svc2-provider", term: svc2T, p:svc2term});
+
+        intgterm = document.getElementById('intg-provider');
+        var intgT = new Terminal({columns:120, rows:40});
+        intgT.dom(intgterm);
+        terms.push({id: "intg-provider", term: intgT, p:intgterm});
 
 
 
@@ -173,6 +180,10 @@
           conn.send("svc2-provider,../service_provider/service_provider -name svc2-prov -ptype beverage -products ocha:300:2,coffee:350:4");
         })
 
+        var intgNode = document.getElementById('startIntg');
+        intgNode.addEventListener('click', function(){
+          conn.send("intg-provider,../integration_provider/intg_provider -name intg-prov");
+        })
         
 
         

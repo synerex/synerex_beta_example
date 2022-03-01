@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,9 +31,11 @@ import (
 var (
 	nodesrv         = flag.String("nodesrv", "127.0.0.1:9990", "Node ID Server")
 	localsx         = flag.String("local", "", "Local Synerex Server")
+	tempdir         = flag.String("templateDir", "", "Template Directory")
 	tracer          trace.Tracer
 	sxServerAddress string
 	mainWs          *WSServ
+	geClient        *sxutil.SXServiceClient
 )
 
 const orderChannel uint32 = 1 // just for private
@@ -40,15 +43,17 @@ var lastMyOrder uint64        // for keep last "NofityDemand" id.
 
 // map between "NotifyDemand" and its reply("ProposeSupply") orders
 var orderMap map[uint64][]*order.Order = make(map[uint64][]*order.Order)
+var supplyMap map[uint64][]*api.Supply = make(map[uint64][]*api.Supply)
 
 // order supply from Services.
 func supplyOrderCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 	od := &order.Order{}
 	dt := sp.Cdata.Entity
-	log.Printf("Got Supply #%v", sp)
+	//	log.Printf("Got Supply #%v", sp)
 	err := proto.Unmarshal(dt, od)
 	if err == nil {
-		log.Printf("got order! %s %#v", sp.SupplyName, *od)
+		log.Printf("got order! %s %s", sp.SupplyName, od)
+		log.Printf(" orderSender %d", sp.SenderId)
 		if sp.SupplyName == "SupplyOrder" { // check the order for me!
 			if sp.TargetId == lastMyOrder { // this is supply for my order
 				// create new span! from supply.
@@ -61,14 +66,15 @@ func supplyOrderCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 					trace.WithSpanKind(trace.SpanKindClient),
 				)
 				// list up orders for selection.
-				fmt.Printf("Get %d Items!\n", len(od.Items))
+				//				fmt.Printf("Get %d Items!\n", len(od.Items))
 				orderMap[lastMyOrder] = append(orderMap[lastMyOrder], od)
+				supplyMap[lastMyOrder] = append(supplyMap[lastMyOrder], sp)
 				for i := range od.Items {
 					fmt.Printf("%d: %s, price:%d\n", i, od.Items[i].Name, od.Items[i].Price)
 				}
 				// send order information to WebSocketClients.
 				jsonData, _ := json.Marshal(od)
-				mainWs.broadcast <- []byte("order," + string(jsonData))
+				mainWs.broadcast <- []byte("menu," + string(jsonData))
 				// is OK to end span?
 				span.End()
 			} else {
@@ -97,11 +103,11 @@ func sendDemand(client *sxutil.SXServiceClient) {
 	// order food and beverage
 
 	itf := &order.Item{
-		Id:   0,
+		Id:   0, // or mode
 		Type: order.ItemType_FOOD,
 	}
 	itb := &order.Item{
-		Id:   1,
+		Id:   0, // or mode
 		Type: order.ItemType_BEVERAGE,
 	}
 
@@ -116,17 +122,19 @@ func sendDemand(client *sxutil.SXServiceClient) {
 	var span trace.Span
 	ctx, span = tracer.Start(
 		ctx,
-		"notifyDemand:OrderDemand",
+		"notifyDemand:OrderDemand(Or)",
 		trace.WithSpanKind(trace.SpanKindClient),
 	)
-	log.Println("Context pln", ctx)
-	log.Printf("Context  %#v", ctx)
-	log.Printf("SpanFromContext  %#v", trace.SpanFromContext(ctx))
-	log.Printf("BaseSpan         %#v", span)
-	log.Printf("Context With Span %#v", trace.ContextWithSpan(ctx, span))
+	/*
+		log.Println("Context pln", ctx)
+		log.Printf("Context  %#v", ctx)
+		log.Printf("SpanFromContext  %#v", trace.SpanFromContext(ctx))
+		log.Printf("BaseSpan         %#v", span)
+		log.Printf("Context With Span %#v", trace.ContextWithSpan(ctx, span))
+	*/
 	sc := span.SpanContext()
 	js, _ := sc.MarshalJSON()
-	log.Printf("MarshalJSON of SpanContext %s", string(js))
+	//	log.Printf("MarshalJSON of SpanContext %s", string(js))
 
 	opts := &sxutil.DemandOpts{
 		Name: "OrderDemand",
@@ -140,6 +148,66 @@ func sendDemand(client *sxutil.SXServiceClient) {
 
 	lastMyOrder, _ = client.NotifyDemand(opts) // keep lastMyOrder as a order number(id)
 	orderMap[lastMyOrder] = make([]*order.Order, 0)
+	supplyMap[lastMyOrder] = make([]*api.Supply, 0)
+	span.AddEvent("afterSending")
+	log.Printf("Send Demand %#v", opts)
+	//	log.Printf("SpanEnd! %v", span)
+	//	log.Printf("SpanEnd! %#v", span)
+	span.End()
+
+}
+
+// should send Complex Demand!
+func sendDemand2(client *sxutil.SXServiceClient) {
+	// order food and beverage
+
+	itf := &order.Item{
+		Id:   1, // and mode
+		Type: order.ItemType_FOOD,
+	}
+	itb := &order.Item{
+		Id:   1, // and mode
+		Type: order.ItemType_BEVERAGE,
+	}
+
+	ord := order.Order{
+		OrderId: 0,
+		Items:   []*order.Item{itf, itb},
+	}
+	et, _ := proto.Marshal(&ord)
+
+	// start Trace!
+	ctx := context.Background()
+	var span trace.Span
+	ctx, span = tracer.Start(
+		ctx,
+		"notifyDemand:OrderDemand(And)",
+		trace.WithSpanKind(trace.SpanKindClient),
+	)
+	/*
+		log.Println("Context pln", ctx)
+		log.Printf("Context  %#v", ctx)
+		log.Printf("SpanFromContext  %#v", trace.SpanFromContext(ctx))
+		log.Printf("BaseSpan         %#v", span)
+		log.Printf("Context With Span %#v", trace.ContextWithSpan(ctx, span))
+	*/
+	sc := span.SpanContext()
+	js, _ := sc.MarshalJSON()
+	//	log.Printf("MarshalJSON of SpanContext %s", string(js))
+
+	opts := &sxutil.DemandOpts{
+		Name: "OrderDemand",
+		JSON: string(js),
+		Cdata: &api.Content{
+			Entity: et,
+		},
+		Context: ctx,
+	}
+	span.AddEvent("beforeSending")
+
+	lastMyOrder, _ = client.NotifyDemand(opts) // keep lastMyOrder as a order number(id)
+	orderMap[lastMyOrder] = make([]*order.Order, 0)
+	supplyMap[lastMyOrder] = make([]*api.Supply, 0)
 	span.AddEvent("afterSending")
 	log.Printf("Send Demand %#v", opts)
 	//	log.Printf("SpanEnd! %v", span)
@@ -185,7 +253,7 @@ func (ws *WSServ) run() {
 				close(client.send)
 			}
 		case message := <-ws.broadcast: // broadcasting to all clients.
-			log.Printf("Broadcasting!", message, len(ws.clients))
+			log.Printf("Broadcasting! %d:%s", len(ws.clients), string(message))
 			for client := range ws.clients {
 				select { // non-blocking send
 				case client.send <- message:
@@ -240,16 +308,111 @@ func (c *WClient) messageHandler(msg []byte) {
 	// handling message from client
 	str := string(msg)
 	log.Printf("get message[%s]", str)
-	switch str {
+	cmds := strings.SplitN(str, ",", 2)
+	//	log.Printf("get message[%#v]", cmds)
+	switch cmds[0] {
 	case "getall":
 		lst := orderList()
 		for _, itm := range lst {
 			jsonData, _ := json.Marshal(itm)
 			log.Printf("Response to send %s : %#v", string(jsonData), itm)
-			c.send <- []byte("order," + string(jsonData))
+			c.send <- []byte("menu," + string(jsonData))
 			// may insert sleep.
 
 		}
+	case "order":
+		itms := make([]*order.Item, 1, 10)
+		err := json.Unmarshal([]byte(cmds[1]), &itms)
+		if err != nil { // success
+			log.Printf("Unmarshal error %v", err)
+		} else {
+			log.Printf("got order items %d", len(itms))
+			for j, ii := range itms {
+				log.Printf("   %d: %s", j+1, ii)
+			}
+
+			sps := supplyMap[lastMyOrder]
+			ods := orderMap[lastMyOrder]
+			for i, sp := range sps {
+				od := ods[i]         // should be same order in supply..
+				od_shops := od.Shops // 特定のオーダーに含まれる店舗
+				log.Printf("od_shops %v", od_shops)
+				spflag := false
+				for _, osp := range od_shops {
+					for _, itm := range itms { //
+						if osp.ShopId == itm.ShopId {
+							spflag = true
+							break
+						}
+						if spflag {
+							break
+						}
+					}
+					if spflag {
+						break
+					}
+				}
+				log.Printf("Check sp is ok? %v %v %v", spflag, sp, od)
+				if spflag { // we should make supply!
+					// create new span!
+					spanCtx := sxutil.UnmarshalSpanContextJSON(sp.ArgJson)
+					log.Printf("argJson")
+					ctx := trace.ContextWithRemoteSpanContext(context.Background(), spanCtx)
+					_, span := tracer.Start(
+						ctx,
+						"send:SelectModifiedSupply",
+						trace.WithSpanKind(trace.SpanKindClient),
+					)
+
+					countOrder := 0
+					for _, its := range itms { //受け取った オーダーとの対応
+						for _, sit := range od.Items {
+							if sit.ShopId == its.ShopId && sit.Name == its.Name {
+								sit.Order = its.Order
+								log.Printf("Set Order! %d %s %d", sit.ShopId, sit.Name, sit.Order)
+								countOrder += 1
+							}
+						}
+					}
+					if countOrder > 0 {
+						// send supply
+						span.AddEvent("Send SelectModifiedSupply")
+						bt, err := proto.Marshal(od)
+						log.Printf("selectModSupply %#v", geClient)
+						// we need to set Order to sp
+						if err == nil {
+							// mod supply!
+							sp.Cdata = &api.Content{
+								Entity: bt,
+							}
+							log.Printf("Supply %#v", sp)
+							sid, err2 := geClient.SelectModifiedSupplyWithContext(ctx, sp)
+							if err2 != nil {
+								log.Printf("Error on select supply %#v", err2)
+								mainWs.broadcast <- []byte("failed,")
+							} else {
+								log.Printf("send SelectSupply OK (Confirmed) %d", sid)
+								jsonData, _ := json.Marshal(od)
+								mainWs.broadcast <- []byte("confirmed," + string(jsonData))
+
+							}
+						} else {
+							log.Printf("Error on Marshaling! %#v", od)
+						}
+					} else { // should not come!
+						log.Printf("Should not come here!")
+					}
+
+					// send order information to WebSocketClients.
+					// is OK to end span?
+					span.End()
+
+				}
+			}
+
+		}
+		// for each proposal -> selectSupply
+
 	}
 
 }
@@ -383,16 +546,20 @@ func main() {
 		log.Print("Connecting SynerexServer")
 	}
 
-	geClient := sxutil.NewSXServiceClient(client, orderChannel, "{Client:UserProvider}")
+	geClient = sxutil.NewSXServiceClient(client, orderChannel, "{Client:UserProvider}")
 
 	wg.Add(1)
 	log.Print("Subscribe Supply")
 	go subscribeOrderSupply(geClient)
 
 	router := gin.Default()
-	execBin, _ := os.Executable()
-	execPath := filepath.Dir(execBin)
-	templatePath := path.Join(execPath, "templates/*.html")
+	// set tepmlate diretory
+	templatePath := *tempdir
+	if templatePath == "" {
+		execBin, _ := os.Executable()
+		execPath := filepath.Dir(execBin)
+		templatePath = path.Join(execPath, "templates/*.html")
+	}
 	log.Printf("TemplatePath: %s", templatePath)
 	router.Static("/static", "./static")
 	router.LoadHTMLGlob(templatePath)
@@ -406,6 +573,18 @@ func main() {
 		mainWs.broadcast <- []byte("clean,")
 
 		sendDemand(geClient)
+		//		index(c)
+	})
+
+	router.GET("/menu2", func(c *gin.Context) {
+		log.Printf("Get from %#v", c)
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("getMenu"))
+
+		// should clean! Webpage.
+		mainWs.broadcast <- []byte("clean,")
+
+		sendDemand2(geClient)
 		//		index(c)
 	})
 

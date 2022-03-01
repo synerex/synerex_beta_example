@@ -1,4 +1,4 @@
-module service_provider
+module intg_provider
 
 go 1.16
 
